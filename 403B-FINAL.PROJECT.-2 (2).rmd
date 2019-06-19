@@ -1,0 +1,1057 @@
+---
+title: "Final Project"
+author: "Simeon Wilson, Emmanuel Brisset, Kazuki Ueda "
+date: "February 3, 2019"
+output:
+  pdf_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+# Clearing all variables and prior sessions
+rm(list=ls(all=TRUE))
+
+# Loading Required Libraries
+library(knitr) #A General-Purpose Package for Dynamic Report Generation in R
+library(base) #Base R functions
+library(XML) #Tools for Parsing and Generating XML Within R and S-Plus 
+library(RCurl) #General Network (HTTP/FTP/...) Client Interface for R
+
+library(readxl) #Read Excel Files
+library(quantmod) #Quantitative Financial Modelling Framework
+library(Quandl) #API Wrapper for Quandl.com 
+library(fredr)
+library(car)
+library(AER)
+library(broom)
+library(leaps)
+library(ggplot2)
+library(stargazer)
+
+library(tseries) #Time Series Analysis and Computational Finance
+library(tis) #Time Indexes and Time Indexed Series
+library(forecast) #Forecast Functions for Time Series and Linear Models
+library(Metrics)
+library(strucchange)
+library(vars)
+library(pracma)
+
+library(berryFunctions)
+
+library(MLmetrics)
+library(dyn)
+opts_chunk$set(echo=TRUE, cache=FALSE, message=FALSE, warning=FALSE)
+opts_chunk$set(tidy.opts=list(width.cutoff=60))
+options(width = 1000)
+``` 
+
+
+
+```{r}
+#Downloading data 
+fredr_set_key("69a7fe855e8c5b47d7f079b3b12cc03c")
+
+#US total trade balance
+balance_total_us <- ts(fredr(series_id = "NETEXP", observation_start = as.Date("1994-01-01"), frequency="q")[3], start=c(1994,1), frequency=4)
+ex_total_us <- ts(fredr(series_id = "EXP0015", observation_start = as.Date("1994-01-01"), frequency="q")[3], start=c(1994,1), frequency=4)
+im_total_us <- ts(fredr(series_id = "IMP0015", observation_start = as.Date("1994-01-01"), frequency="q")[3], start=c(1994,1), frequency=4)
+
+#US export to countries
+ex_china <- ts(fredr(series_id = "EXPCH", observation_start = as.Date("1994-01-01"), frequency="q")[3], start=c(1994,1), frequency=4)
+ex_canada <- ts(fredr(series_id = "EXPCA", observation_start = as.Date("1994-01-01"), frequency="q")[3], start=c(1994,1), frequency=4)
+ex_mex <- ts(fredr(series_id = "EXPMX", observation_start = as.Date("1994-01-01"), frequency="q")[3], start=c(1994,1), frequency=4)
+ex_jpn <- ts(fredr(series_id = "EXPJP", observation_start = as.Date("1994-01-01"), frequency="q")[3], start=c(1994,1), frequency=4)
+ex_germ <- ts(fredr(series_id = "EXPGE", observation_start = as.Date("1994-01-01"), frequency="q")[3], start=c(1994,1), frequency=4)
+
+#US import from countries
+im_china <- ts(fredr(series_id = "IMPCH", observation_start = as.Date("1994-01-01"), frequency="q")[3], start=c(1994,1), frequency=4)
+im_canada <- ts(fredr(series_id = "IMPCA", observation_start = as.Date("1994-01-01"), frequency="q")[3], start=c(1994,1), frequency=4)
+im_mex <- ts(fredr(series_id = "IMPMX", observation_start = as.Date("1994-01-01"), frequency="q")[3], start=c(1994,1), frequency=4)
+im_jpn <- ts(fredr(series_id = "IMPJP", observation_start = as.Date("1994-01-01"), frequency="q")[3], start=c(1994,1), frequency=4)
+im_germ <- ts(fredr(series_id = "IMPGE", observation_start = as.Date("1994-01-01"), frequency="q")[3], start=c(1994,1), frequency=4)
+
+#US trade balance by countries
+balance_us <- ex_total_us - im_total_us
+balance_china <- ex_china - im_china
+balance_canada <- ex_canada - im_canada
+balance_mex <- ex_mex - im_mex
+balance_jpn <- ex_jpn - im_jpn
+balance_germ <- ex_germ - im_germ
+
+
+
+#GDP
+GDP_USA <- ts(fredr(series_id = "USAGDPNQDSMEI", observation_start = as.Date("1994-01-01"), frequency="q")[3], start=c(1994,1), frequency=4)
+nGDP_china <- ts(fredr(series_id = "CHNGDPNQDSMEI", observation_start = as.Date("1994-01-01"), frequency="q")[3], start=c(1994,1), frequency=4)
+nGDP_canada <- ts(fredr(series_id = "CANGDPNQDSMEI", observation_start = as.Date("1994-01-01"), frequency="q")[3], start=c(1994,1), frequency=4)
+nGDP_mex <- ts(fredr(series_id = "MEXGDPNQDSMEI", observation_start = as.Date("1994-01-01"), frequency="q")[3], start=c(1994,1), frequency=4)
+nGDP_jpn <- ts(fredr(series_id = "JPNGDPNQDSMEI", observation_start = as.Date("1994-01-01"), frequency="q")[3], start=c(1994,1), frequency=4)
+nGDP_germ <- ts(fredr(series_id = "DEUGDPNQDSMEI", observation_start = as.Date("1994-01-01"), frequency="q")[3], start=c(1994,1), frequency=4)
+
+#Exchange rate
+exch_china <- ts(fredr(series_id = "CCUSSP02CNQ650N", observation_start = as.Date("1994-01-01"), frequency="q")[3], start=c(1994,1), frequency=4)
+exch_canada <- ts(fredr(series_id = "EXCAUS", observation_start = as.Date("1994-01-01"), frequency="q")[3], start=c(1994,1), frequency=4)
+exch_mex <- ts(fredr(series_id = "CCUSMA02MXM618N", observation_start = as.Date("1994-01-01"), frequency="q")[3], start=c(1994,1), frequency=4)
+exch_jpn <- ts(fredr(series_id = "DEXJPUS", observation_start = as.Date("1994-01-01"), frequency="q")[3], start=c(1994,1), frequency=4)
+exch_germ <- ts(fredr(series_id = "CCUSSP01DEM650N", observation_start = as.Date("1994-01-01"), frequency="q")[3], start=c(1994,1), frequency=4)
+
+#GDP by countries in US dollars
+GDP_china=(nGDP_china/exch_china)
+GDP_canada=(nGDP_canada/exch_canada)
+GDP_mex=(nGDP_mex/exch_mex)
+GDP_jpn=(nGDP_jpn/exch_jpn)
+GDP_germ=(nGDP_germ/exch_germ)
+
+
+#Interest rate
+fed_funds_rate <- ts(fredr(series_id = "FEDFUNDS", observation_start = as.Date("1994-01-01"), frequency="q")[3], start=c(1994,1), frequency=4)
+corporate_bond_yield <- ts(fredr(series_id = "AAA", observation_start = as.Date("1994-01-01"), frequency="q")[3], start=c(1994,1), frequency=4)
+Govt_bond_yield <- ts(fredr(series_id = "IRLTLT01USM156N", observation_start = as.Date("1994-01-01"), frequency="q")[3], start=c(1994,1), frequency=4)
+
+
+#IS balance
+personal_savings_rate <- ts(fredr(series_id = "PSAVERT", observation_start = as.Date("1994-01-01"), frequency="q")[3], start=c(1994,1), frequency=4)
+private_domestic_investment<- ts(fredr(series_id = "A008RO1Q156NBEA", observation_start = as.Date("1994-01-01"), frequency="q")[3], start=c(1994,1), frequency=4)
+
+#Foreign investment
+Foreign_d_invest <- ts(fredr(series_id = "ROWFDIQ027S", observation_start = as.Date("1994-01-01"), frequency="q")[3], start=c(1994,1), frequency=4)
+US_dollar_indx <- ts(fredr(series_id = "DTWEXM", observation_start = as.Date("1994-01-01"), frequency="q")[3], start=c(1994,1), frequency=4)
+
+# housing 
+Housing_sarts <- ts(fredr(series_id = "HOUST", observation_start = as.Date("1994-01-01"), frequency="q")[3], start=c(1994,1), frequency=4)
+
+Housing_complete <- ts(fredr(series_id = "COMPUTSA", observation_start = as.Date("1994-01-01"), frequency="q")[3], start=c(1994,1), frequency=4)
+
+# oil prices 
+oil_price <- ts(fredr(series_id = "DCOILWTICO", observation_start = as.Date("1994-01-01"), frequency="q")[3], start=c(1994,1), frequency=4)
+
+
+#Unemployment
+Unemply_rate <- ts(fredr(series_id = "UNRATE", observation_start = as.Date("1994-01-01"), frequency="q")[3], start=c(1994,1), frequency=4)
+```
+
+
+```{r}
+world_tarif<- data.frame( c(8.57,	6.44,	6.15,	5.42,	5.22,	5.21,	4.96,	5.38,	4.56, 4.57,	3.72,	3.5,	3.16,	3.38,	3.31,	3.2,	3.3,	3.53,	2.89,	3.04,	2.87,	3.06,	2.98,	2.59))
+
+rows<- seq(2,48,2)
+rows2<- seq(2,72,3)
+rows3<- seq(2,96,4)
+world_tarif<- insertRows(world_tarif, rows )
+world_tarif<-insertRows(world_tarif, rows2 )
+world_tarif<-insertRows(world_tarif, rows3 )
+world_tarif<-insertRows(world_tarif, c(98) )
+world_tarif[99,1] <- as.numeric(2.59)
+world_tarif<- na.approx(world_tarif)
+
+world_tarif <- ts(world_tarif, start = c(1994,1), end = c(2018,3), frequency = 4)
+```
+
+```{r}
+USA_tarif<- data.frame( c(3,	2.94,	2.86,	2.6,	3.09,	2.31,	2.1,	2.11,	2.16,	1.96,	1.79,	1.75,	1.7,	1.54,	1.57,	1.71,	1.66,	1.68,	1.68,	1.67,	1.69,	1.69,	1.67,	1.66))
+
+rows<- seq(2,48,2)
+rows2<- seq(2,72,3)
+rows3<- seq(2,96,4)
+USA_tarif<- insertRows(USA_tarif, rows )
+USA_tarif<-insertRows(USA_tarif, rows2 )
+USA_tarif<-insertRows(USA_tarif, rows3 )
+USA_tarif<-insertRows(USA_tarif, c(98) )
+USA_tarif[99,1] <- as.numeric(1.66)
+USA_tarif<- na.approx(USA_tarif)
+
+USA_tarif <- ts(USA_tarif, start = c(1994,1), end = c(2018,3), frequency = 4)
+```
+```{r}
+China_tarif<- data.frame( c(27.93,	23.84,	19.76,	15.82,	15.5,	14.46,	14.67,	14.11,	7.72,	6.48,	5.96,	4.87,	4.25,	5.07,	4.47,	3.94,	4.65,	5.99,	5.5,	5,	4.74,	4.52,	3.54,	3.83))
+
+rows<- seq(2,48,2)
+rows2<- seq(2,72,3)
+rows3<- seq(2,96,4)
+China_tarif<- insertRows(China_tarif, rows )
+China_tarif<-insertRows(China_tarif, rows2 )
+China_tarif<-insertRows(China_tarif, rows3 )
+China_tarif<-insertRows(China_tarif, c(98) )
+China_tarif[99,1] <- as.numeric(3.83)
+China_tarif<- na.approx(China_tarif)
+
+China_tarif <- ts(China_tarif, start = c(1994,1), end = c(2018,3), frequency = 4)
+```
+
+```{r}
+mex_tarif<- data.frame( c(7.25,	7.25,	14.02,	13.08,	13.05,	6.59,	15.15,	15.24,	5.03,	15.44,	3,	3,	2.39,	2.41,	1.87,	1.61,	5.37,	5.37,	5.17,	4.87,	1.02,	4.45,	4.35,	1.24))
+
+rows<- seq(2,48,2)
+rows2<- seq(2,72,3)
+rows3<- seq(2,96,4)
+mex_tarif<- insertRows(mex_tarif, rows )
+mex_tarif<-insertRows(mex_tarif, rows2 )
+mex_tarif<-insertRows(mex_tarif, rows3 )
+mex_tarif<-insertRows(mex_tarif, c(98) )
+mex_tarif[99,1] <- as.numeric(1.5)
+mex_tarif<- na.approx(mex_tarif)
+
+mex_tarif <- ts(mex_tarif, start = c(1994,1), end = c(2018,3), frequency = 4)
+```
+
+```{r}
+canada_tarif<- data.frame( c(7,	6.69,	5.43,	1.99,	1.44,	1.01,	1.31,	1.6,	1.49,	2.46,	1.51,	1.46,	1.45,	1.54,	1.54,	1.7,	1.46,	1.38,	1.4,	1.45,	1.43,	1.65,	1.56,	1.52))
+
+rows<- seq(2,48,2)
+rows2<- seq(2,72,3)
+rows3<- seq(2,96,4)
+canada_tarif<- insertRows(canada_tarif, rows )
+canada_tarif<-insertRows(canada_tarif, rows2 )
+canada_tarif<-insertRows(canada_tarif, rows3 )
+canada_tarif<-insertRows(canada_tarif, c(98) )
+canada_tarif[99,1] <- as.numeric(1.5)
+canada_tarif<- na.approx(canada_tarif)
+
+canada_tarif <- ts(canada_tarif, start = c(1994,1), end = c(2018,3), frequency = 4)
+```
+
+```{r}
+germ_tarif<- data.frame( c(4.16,	6.28,	4.4,	3.66,	3.47,	3.48,	2.27,	3.27,	2.22,	2.31,	2.1,	2.26,	2.15,	2.06,	1.56,	1.7,	1.89,	1.43,	1.31,	1.38,	1.84,	1.89,	1.96,	1.79))
+
+rows<- seq(2,48,2)
+rows2<- seq(2,72,3)
+rows3<- seq(2,96,4)
+germ_tarif<- insertRows(germ_tarif, rows )
+germ_tarif<-insertRows(germ_tarif, rows2 )
+germ_tarif<-insertRows(germ_tarif, rows3 )
+germ_tarif<-insertRows(germ_tarif, c(98) )
+germ_tarif[99,1] <- as.numeric(1.79)
+germ_tarif<- na.approx(germ_tarif)
+
+germ_tarif <- ts(germ_tarif, start = c(1994,1), end = c(2018,3), frequency = 4)
+```
+
+```{r}
+japan_tarif<- data.frame( c(4.3,	5.22,	5.59,	4.33,	4.17,	4.42,	4.49,	5.75,	5.52,	5.23,	4,	3.58,	2.82,	2.74,	2.49,	2.91,	2.2,	2.37,	2.27,	1.18,	2.29,	2.3,	2.55,	2.51))
+
+rows<- seq(2,48,2)
+rows2<- seq(2,72,3)
+rows3<- seq(2,96,4)
+japan_tarif<- insertRows(japan_tarif, rows )
+japan_tarif<-insertRows(japan_tarif, rows2 )
+japan_tarif<-insertRows(japan_tarif, rows3 )
+japan_tarif<-insertRows(japan_tarif, c(98) )
+japan_tarif[99,1] <- as.numeric(1.79)
+japan_tarif<- na.approx(japan_tarif)
+
+japan_tarif <- ts(japan_tarif, start = c(1994,1), end = c(2018,3), frequency = 4)
+```
+
+
+I-S Balance
+```{r}
+#dataset for VAR and various plots 
+data1 <- ts.union(balance_us, private_domestic_investment, Foreign_d_invest, personal_savings_rate)
+data1 <- window(data1,end=c(2018,3))
+plot(balance_us, main = "U.S trade balance (goods, Millions of dollars)")
+par(mfrow=c(2,2))
+
+plot(private_domestic_investment, main = "private domestic investment")
+plot(Foreign_d_invest, main = "foreign direct investment")
+plot(personal_savings_rate, main = "Personal savings rate")
+
+plot(fed_funds_rate, main = "Federal Funds rate ")
+par(mfrow=c(2,2))
+
+plot(US_dollar_indx, main = "US dollar index")
+plot(Unemply_rate, main = "Unemployment rate")
+plot(corporate_bond_yield, main = "20 year Aaa corporate bond yield")
+
+plot(Govt_bond_yield, main = "U.S gov't bond yield (10 year) ")
+
+
+par(mfrow=c(2,2))
+
+plot(US_dollar_indx, main = "US dollar index")
+plot(Unemply_rate, main = "Unemployment rate")
+plot(corporate_bond_yield, main = "20 year Aaa corporate bond yield")
+
+plot(Govt_bond_yield, main = "U.S gov't bond yield (10 year) ")
+
+
+par(mfrow=c(2,2))
+
+plot(balance_canada, main = "Canada trade balance")
+plot(balance_china, main = "China trade balance")
+plot(balance_germ, main = "Germany trade balance")
+
+plot(balance_jpn, main = "Japan trade balance ")
+plot(balance_mex, main = "Mexico trade balance ")
+
+par(mfrow=c(2,2))
+
+plot(balance_mex, main = "Mexico trade balance ")
+plot(Housing_sarts, main = "housing starts")
+plot(Housing_complete, main = "housing completions")
+
+plot(oil_price, main = "world price of crude oil ")
+
+#select the best-lag. because of quarterly data, the lag.max=4? 
+VARselect(data1,lag.max=4)
+
+#plug-in the best-lag into the var model
+var<-VAR(data1,p=VARselect(data1,lag.max=4)$selection[1])
+summary(var)
+
+acf(residuals(var)[,2])
+pacf(residuals(var)[,2])
+
+
+
+
+
+plot(balance_us, ylim =c(-85000,0), col = "blue", main = "U.S trade deficit with specific countries", ylab = "trade balance (millions of dollars)")
+legend(1993, -25000, legend = c("Canada", "Mexico", "Germany", "Japan", "China", "total" ), col = c("maroon", "green3", "black", "yellow", "red", "blue"), lty = 1, box.lwd = 0, box.col = "white", bg = "white", bty = "n")
+lines(balance_china, col = "red", lty =1)
+lines(balance_canada, col = "maroon")
+lines(balance_mex, col = "green3")
+lines(balance_jpn, col = "yellow")
+lines(balance_germ, col = "black")
+
+plot(balance_us, ylim =c(-9000,0), col = "blue", main = "U.S trade deficit with specific countries", ylab = "trade balance (millions of dollars)")
+legend(1993, -5000, legend = c("Canada", "Mexico", "Germany", "Japan", "China", "total" ), col = c("maroon", "green3", "black", "yellow3", "red", "blue"), lty = 1, box.lwd = 0, box.col = "white", bg = "white", bty = "n")
+lines(balance_china, col = "red", lty =1)
+lines(balance_canada, col = "maroon")
+lines(balance_mex, col = "green3")
+lines(balance_jpn, col = "yellow3")
+lines(balance_germ, col = "black")
+```
+
+Economic Size
+```{r}
+#dataset for VAR
+USA <- log(GDP_USA)
+china <- log(GDP_china)
+canada <- log(GDP_canada)
+mex <- log(GDP_mex)
+jpn <- log(GDP_jpn)
+germ <- log(GDP_germ)
+
+GDP <- ts.union(USA, china, canada, mex, jpn, germ)
+plot(GDP)
+
+data2 <- ts.union(balance_us, GDP)
+data2 <- window(data2,end=c(2018,3))
+
+#select the best-lag. because of quarterly data, the lag.max=4? 
+VARselect(data2,lag.max=20)
+
+#plug-in the best-lag into the var model
+var<-VAR(data2,p=VARselect(data2,lag.max=4)$selection[1])
+summary(var)
+
+acf(residuals(var)[,2])
+pacf(residuals(var)[,2])
+```
+
+
+Tariff
+```{r}
+#dataset for VAR
+USA <- USA_tarif
+china <- China_tarif
+canada <- canada_tarif
+mex <- mex_tarif
+jpn <- japan_tarif
+germ <- germ_tarif
+
+tariff <- ts.union(USA, china, canada, mex, jpn, germ)
+plot(tariff)
+
+data3 <- ts.union(balance_us, tariff)
+data3 <- window(data3,end=c(2018,3)) # If we get or interpolate more data regarding tariff, change here
+
+#select the best-lag. because of quarterly data, the lag.max=4? 
+VARselect(data3,lag.max=4)
+
+#plug-in the best-lag into the var model
+var<-VAR(data3,p=VARselect(data3,lag.max=4)$selection[1])
+summary(var)
+```
+
+Tariff difference from USA: Only Japan is significant
+```{r}
+#dataset for VAR
+USA <- USA_tarif
+china <- China_tarif - USA_tarif
+canada <- canada_tarif - USA_tarif
+mex <- mex_tarif - USA_tarif
+jpn <- japan_tarif - USA_tarif
+germ <- germ_tarif - USA_tarif
+
+tariff <- ts.union(china, canada, mex, jpn, germ)
+plot(tariff)
+
+data3 <- ts.union(balance_us, tariff)
+data3 <- window(data3,end=c(2017,1)) # If we get or interpolate more data regarding tariff, change here
+
+#select the best-lag. because of quarterly data, the lag.max=4? 
+VARselect(data3,lag.max=4)
+
+#plug-in the best-lag into the var model
+var<-VAR(data3,p=VARselect(data3,lag.max=4)$selection[1])
+summary(var)
+```
+
+
+```{r}
+data6 <- ts.union(balance_us, Housing_sarts, Housing_complete, oil_price)
+data6 <- window(data6,end=c(2018,3))
+#select the best-lag. because of quarterly data, the lag.max=4? 
+VARselect(data6,lag.max=10)
+
+#plug-in the best-lag into the var model
+var<-VAR(data6,p=VARselect(data6,lag.max=10)$selection[1])
+summary(var)
+```
+
+
+
+```{r}
+#Model1
+#foreign to domestic investment
+#private investment
+#ff rate
+#coorporate bond yield
+data1 <- ts.union(balance_total_us, Foreign_d_invest, private_domestic_investment, fed_funds_rate, corporate_bond_yield)
+data1 <- window(data1,end=c(2018,3))
+
+#Model2
+#us dollar
+#unemploy
+#personal saving rate
+data2 <- ts.union(balance_total_us, US_dollar_indx, Unemply_rate, personal_savings_rate)
+data2 <- window(data2,end=c(2018,3))
+
+#Model3
+#ff rate
+#government bond
+data3 <- ts.union(balance_total_us, fed_funds_rate, Govt_bond_yield)
+data3 <- window(data3,end=c(2018,3))
+
+
+
+data4 <- ts.union(balance_total_us, balance_china, balance_canada, balance_mex, balance_jpn, balance_germ)
+data4 <- window(data4,end=c(2018,3))
+
+
+data5 <- ts.union(balance_total_us, GDP_USA, GDP_china, GDP_canada, GDP_mex, GDP_jpn, GDP_germ)
+data5 <- window(data5,end=c(2018,3))
+
+```
+
+
+```{r}
+#select the best-lag. because of quarterly data, the lag.max=4? 
+#VARselect(data,lag.max=4)
+
+#plug-in the best-lag into the var model
+var1<-VAR(data1,p=VARselect(data1,lag.max=4)$selection[1])
+summary(var1)
+
+var2<-VAR(data2,p=VARselect(data2,lag.max=4)$selection[1])
+summary(var2)
+
+var3<-VAR(data3,p=VARselect(data3,lag.max=4)$selection[1])
+summary(var3)
+
+var4<-VAR(data4,p=VARselect(data4,lag.max=4)$selection[1])
+summary(var4)
+
+```
+
+```
+#look at ACF & PACF??
+acf(residuals(balance.var)[,2])
+pacf(residuals(balance.var)[,2])
+
+
+#forecast
+balance.pred <- predict(balance.var,n.ahead=20,ci=0.95)
+plot(balance.pred)
+
+
+#Granger causality, how to determine order??
+grangertest(balance_total_us ~ window(balance_china,end=c(2018,3)), order = 8)
+grangertest(window(balance_china,end=c(2018,3)) ~balance_total_us, order = 8)
+
+grangertest(balance_total_us ~ window(GDP_china,end=c(2018,3)), order = 8)
+grangertest(balance_total_us ~ window(personal_savings_rate ,end=c(2018,3)), order = 8)
+
+
+#Inpulse-response
+irf.balance <- irf(balance.var, impulse = "")
+
+
+#Variance Decomposition (Forecast Error Variance Decomposition)
+#plot(fevd(y_model, n.ahead = 5))
+
+
+#CUSUM Plot
+#plot(stability(y_model, type = "Rec-CUSUM"), plot.type="single")
+```
+
+
+
+```{r}
+#OLS Models about same period effects on trade balance (no lags taken into account)
+data7<-data.frame(data1,data2,data3,data4,data5,data6)
+#Model with all the variables 
+mreg.mod <- lm(balance_us~ Foreign_d_invest+ japan_tarif+ germ_tarif+USA_tarif+China_tarif+canada_tarif+mex_tarif+ private_domestic_investment+ fed_funds_rate+ corporate_bond_yield+US_dollar_indx+Unemply_rate+ personal_savings_rate+Govt_bond_yield+GDP_USA+ GDP_china+ GDP_canada+ GDP_mex+ GDP_jpn+GDP_germ+ Housing_sarts+ Housing_complete+ oil_price, data=data7)
+summary(mreg.mod)
+# Forward Selection
+step.model <- stepAIC(mreg.mod, direction = "forward",
+                      trace = FALSE)
+summary(step.model)
+
+# Backward Selection
+step.model <- stepAIC(mreg.mod, direction = "backward",
+                      trace = FALSE)
+summary(step.model)
+
+# Stepwise Selection
+step.model <- stepAIC(mreg.mod, direction = "both",
+                      trace = FALSE)
+summary(step.model)
+# Autmated way to evaluate all the models:
+step(mreg.mod)
+bptest(step.model)
+```
+```{r}
+#china OLS 
+
+
+#OLS Models about same period effects on trade balance (no lags taken into account)
+data7<-data.frame(data1,data2,data3,data4,data5,data6)
+#Model with all the variables 
+mreg.mod <- lm(balance_china~ Foreign_d_invest+ japan_tarif+ germ_tarif+USA_tarif+China_tarif+canada_tarif+mex_tarif+ private_domestic_investment+ fed_funds_rate+ corporate_bond_yield+US_dollar_indx+Unemply_rate+ personal_savings_rate+Govt_bond_yield+GDP_USA+ GDP_china+ GDP_canada+ GDP_mex+ GDP_jpn+GDP_germ+ Housing_sarts+ Housing_complete+ oil_price, data=data7)
+summary(mreg.mod)
+# Forward Selection
+step.model <- stepAIC(mreg.mod, direction = "forward",
+                      trace = FALSE)
+summary(step.model)
+
+# Backward Selection
+step.model <- stepAIC(mreg.mod, direction = "backward",
+                      trace = FALSE)
+summary(step.model)
+
+# Stepwise Selection
+step.model <- stepAIC(mreg.mod, direction = "both",
+                      trace = FALSE)
+summary(step.model)
+# Autmated way to evaluate all the models:
+step(mreg.mod)
+bptest(step.model)
+```
+
+```{r}
+#Canada OLS
+
+
+
+
+#OLS Models about same period effects on trade balance (no lags taken into account)
+data7<-data.frame(data1,data2,data3,data4,data5,data6)
+#Model with all the variables 
+mreg.mod <- lm(balance_canada~ Foreign_d_invest+ japan_tarif+ germ_tarif+USA_tarif+China_tarif+canada_tarif+mex_tarif+ private_domestic_investment+ fed_funds_rate+ corporate_bond_yield+US_dollar_indx+Unemply_rate+ personal_savings_rate+Govt_bond_yield+GDP_USA+ GDP_china+ GDP_canada+ GDP_mex+ GDP_jpn+GDP_germ+ Housing_sarts+ Housing_complete+ oil_price, data=data7)
+summary(mreg.mod)
+# Forward Selection
+step.model <- stepAIC(mreg.mod, direction = "forward",
+                      trace = FALSE)
+summary(step.model)
+
+# Backward Selection
+step.model <- stepAIC(mreg.mod, direction = "backward",
+                      trace = FALSE)
+summary(step.model)
+
+# Stepwise Selection
+step.model <- stepAIC(mreg.mod, direction = "both",
+                      trace = FALSE)
+summary(step.model)
+# Autmated way to evaluate all the models:
+step(mreg.mod)
+#testing for heteroskedasticity 
+bptest(step.model)
+```
+
+```{r}
+#OLS Models about same period effects on trade balance (no lags taken into account)
+data7<-data.frame(data1,data2,data3,data4,data5,data6)
+#Model with all the variables 
+mreg.mod <- lm(balance_us~ +balance_china+ balance_canada+ balance_mex+ balance_jpn+ balance_germ, data=data7)
+summary(mreg.mod)
+# Forward Selection
+step.model <- stepAIC(mreg.mod, direction = "forward",
+                      trace = FALSE)
+summary(step.model)
+
+# Backward Selection
+step.model <- stepAIC(mreg.mod, direction = "backward",
+                      trace = FALSE)
+summary(step.model)
+
+# Stepwise Selection
+step.model <- stepAIC(mreg.mod, direction = "both",
+                      trace = FALSE)
+summary(step.model)
+# Autmated way to evaluate all the models:
+step(mreg.mod)
+bptest(step.model)
+```
+
+
+
+
+
+
+
+```{r}
+#From the stepwise selection, the good model is:
+I <- ts.union( canada_tarif,USA_tarif,germ_tarif ,private_domestic_investment, 
+    Unemply_rate, Govt_bond_yield , balance_china , 
+    balance_canada , balance_mex , balance_jpn , 
+    GDP_USA , GDP_china , GDP_mex , GDP_jpn ,GDP_germ, Housing_complete , 
+    oil_price)
+
+I <- window(I,end=c(2018,3))
+balance_us <-window(balance_us,end=c(2018,3))
+
+modelgood<-lm(balance_us ~I)
+
+
+bptest(modelgood)
+
+summary(modelgood)
+#Check at the residuals 
+plot(modelgood$residuals,pch=20, ylab="Residuals")
+abline(h=0, lwd=2, col="red")
+hist(modelgood$residuals,col="skyblue2", freq = FALSE, ylab = "Density",
+     main = "Histogram of the Residuals")
+lines(density(modelgood$residuals),lwd = 2, col ="red")
+
+```
+
+
+```{r}
+test<-dyn$lm(balance_total_us~ lag(oil_price,-1) + lag(oil_price,-2) )
+summary(test)
+test<-dyn$lm(balance_total_us~ lag(oil_price,-1) + lag(oil_price,-2) + lag(balance_total_us, -1)+lag(balance_total_us, -2)+lag(balance_total_us, -3) )
+summary(test)
+
+
+test<-dyn$lm(balance_total_us~ lag(oil_price,-1) + lag(oil_price,-2) + lag(balance_total_us, -1)+lag(GDP_USA, -1) )
+summary(test)
+
+test<-dyn$lm(balance_total_us~ lag(oil_price,-1) + lag(oil_price,-2) + lag(balance_total_us, -1)+lag(GDP_USA, -1)+lag(Unemply_rate, -1)+lag(Unemply_rate, -2) )
+summary(test)
+
+test<-dyn$lm(balance_total_us~ lag(oil_price,-1) + lag(oil_price,-2) + lag(balance_total_us, -1)+lag(GDP_USA, -1)+lag(Unemply_rate, -1)+lag(Unemply_rate, -2)+lag(balance_germ, -1) +lag(balance_germ, -2))
+summary(test)
+test<-dyn$lm(balance_total_us~ lag(oil_price,-1) + lag(oil_price,-2) + lag(balance_total_us, -1)+lag(GDP_USA, -1)+lag(Unemply_rate, -1)+lag(Unemply_rate, -2)+lag(balance_canada, -2) )
+summary(test)
+
+test<-dyn$lm(balance_total_us~ lag(oil_price,-1) + lag(oil_price,-2) + lag(balance_total_us, -1)+lag(GDP_USA, -1)+lag(Unemply_rate, -1)+lag(Unemply_rate, -2))
+summary(test)
+
+
+
+
+
+#everything
+full_model <- dyn$lm(balance_us ~lag(balance_us, -1) + lag(balance_us, -2) + lag(private_domestic_investment, -1) +lag(private_domestic_investment, -2) + lag(personal_savings_rate, -1) + lag(Unemply_rate, -1) + lag(Unemply_rate, -2) + lag(balance_china, -1) + lag(balance_canada, -1) + lag(balance_mex, -1) + lag(balance_germ, -1) + lag(balance_canada, -2) + lag(GDP_USA, -1) + lag(GDP_canada, -1) + lag(GDP_china, -1)  + lag(GDP_canada, -4)   + lag(Housing_complete, -1) + lag(Housing_complete, -3) + lag(oil_price, -1) + lag(oil_price, -2))
+summary(full_model)
+
+#simplified without lag of self 
+full_model <- dyn$lm(balance_us ~  +lag(private_domestic_investment, -2)  + + lag(Unemply_rate, -2)   + lag(balance_mex, -1) + lag(balance_germ, -1)  + lag(GDP_USA, -1)  + lag(GDP_china, -1) + lag(Housing_complete, -2) + lag(oil_price, -1)) 
+summary(full_model)
+
+
+full_model2 <- dyn$lm(balance_us ~lag(balance_us, -1) + lag(balance_us, -2)  +lag(private_domestic_investment, -2) + lag(Unemply_rate, -2) + lag(balance_china, -1)  + lag(balance_mex, -1)   + lag(GDP_USA, -1) + lag(GDP_canada, -1) + lag(GDP_china, -1)  + lag(GDP_canada, -4)   + lag(Housing_complete, -1)  + lag(oil_price, -2))
+summary(full_model2)
+
+
+
+
+
+
+
+
+
+AIC(full_model)
+AIC(full_model2)
+
+
+BIC(full_model)
+BIC(full_model2)
+
+```
+
+China's Case
+```{r}
+#Model1
+#foreign to domestic investment
+#private investment
+#ff rate
+#coorporate bond yield
+data1 <- ts.union(balance_china, Foreign_d_invest, private_domestic_investment, fed_funds_rate, corporate_bond_yield)
+data1 <- window(data1,end=c(2018,3))
+
+#Model2
+#us dollar
+#unemploy
+#personal saving rate
+data2 <- ts.union(balance_china, US_dollar_indx, Unemply_rate, personal_savings_rate)
+data2 <- window(data2,end=c(2018,3))
+
+#Model3
+#ff rate
+#government bond
+data3 <- ts.union(balance_china, fed_funds_rate, Govt_bond_yield)
+data3 <- window(data3,end=c(2018,3))
+
+
+data4 <- ts.union(balance_china, log(GDP_USA), log(GDP_china))
+data4 <- window(data4,end=c(2018,3))
+
+#model5
+#tariff
+data5 <- ts.union(balance_china, USA_tarif, China_tarif)
+data5 <- window(data5, end = c(2018,3))
+
+
+#model6
+#housing&oil
+data6 <- ts.union(balance_china, Housing_sarts, Housing_complete, oil_price)
+data6 <- window(data6, end = c(2018,3))
+```
+
+
+
+```{r}
+#select the best-lag. because of quarterly data, the lag.max=4? 
+#VARselect(data,lag.max=4)
+
+#plug-in the best-lag into the var model
+var1<-VAR(data1,p=VARselect(data1,lag.max=4)$selection[1])
+summary(var1)
+
+var2<-VAR(data2,p=VARselect(data2,lag.max=4)$selection[1])
+summary(var2)
+
+var3<-VAR(data3,p=VARselect(data3,lag.max=4)$selection[1])
+summary(var3)
+
+var4<-VAR(data4,p=VARselect(data4,lag.max=4)$selection[1])
+summary(var4)
+```
+
+
+```{r}
+var5<-VAR(data5,p=VARselect(data4,lag.max=4)$selection[1])
+summary(var5)
+
+var6<-VAR(data6,p=VARselect(data4,lag.max=4)$selection[1])
+summary(var6)
+```
+
+
+```{r}
+library(dyn)
+full_model <- dyn$lm(balance_china ~ lag(balance_china, -1) + lag(balance_china, -2) + lag(balance_china, -3) + lag(Foreign_d_invest, -3) + lag(private_domestic_investment, -3) + lag(Unemply_rate, -1) + lag(US_dollar_indx, -4) + lag(log(GDP_USA), -1) + lag(log(GDP_china), -4) + lag(oil_price, -1) + lag(Housing_complete, 2) + lag(oil_price, -3) + lag(Housing_complete, -4) + lag(oil_price, -4))
+
+summary(full_model)
+```
+
+```{r}
+full_model_1 <- dyn$lm(balance_china ~ lag(balance_china, -1) + lag(balance_china, -2) + lag(balance_china, -3) + lag(Foreign_d_invest, -3) + lag(Unemply_rate, -1) + lag(US_dollar_indx, -4) + lag(log(GDP_USA), -1) + lag(log(GDP_china), -4) + lag(oil_price, -1) + lag(Housing_complete, 2) + lag(oil_price, -3) + lag(Housing_complete, -4) + lag(oil_price, -4))
+
+summary(full_model_1)
+```
+```{r}
+full_model_2 <- dyn$lm(balance_china ~ lag(balance_china, -1) + lag(balance_china, -2) + lag(balance_china, -3) + lag(Foreign_d_invest, -3) + lag(US_dollar_indx, -4) + lag(log(GDP_USA), -1) + lag(log(GDP_china), -4) + lag(oil_price, -1) + lag(Housing_complete, 2) + lag(oil_price, -3) + lag(Housing_complete, -4) + lag(oil_price, -4))
+
+summary(full_model_2)
+```
+
+```{r}
+full_model_3 <- dyn$lm(balance_china ~ lag(balance_china, -1) + lag(balance_china, -2) + lag(balance_china, -3) + lag(Foreign_d_invest, -3) + lag(US_dollar_indx, -4) + lag(log(GDP_USA), -1) + lag(log(GDP_china), -4) + lag(oil_price, -1) + lag(Housing_complete, 2) + lag(oil_price, -3) + lag(oil_price, -4))
+
+summary(full_model_3)
+```
+
+```{r}
+full_model_4 <- dyn$lm(balance_china ~ lag(balance_china, -1) + lag(balance_china, -2) + lag(balance_china, -3) + lag(Foreign_d_invest, -3) + lag(US_dollar_indx, -4) + lag(log(GDP_USA), -1) + lag(log(GDP_china), -4) + lag(oil_price, -1) + lag(Housing_complete, 2) + lag(oil_price, -4))
+
+summary(full_model_4)
+```
+```{r}
+full_model_5 <- dyn$lm(balance_china ~ lag(balance_china, -1) + lag(balance_china, -2) + lag(balance_china, -3) + lag(Foreign_d_invest, -3) + lag(US_dollar_indx, -4) + lag(log(GDP_china), -4) + lag(oil_price, -1) + lag(Housing_complete, 2) + lag(oil_price, -4))
+
+summary(full_model_5)
+```
+```{r}
+full_model_6 <- dyn$lm(balance_china ~ lag(balance_china, -1) + lag(balance_china, -2) + lag(balance_china, -3) + lag(Foreign_d_invest, -3) + lag(log(GDP_china), -4) + lag(oil_price, -1) + lag(Housing_complete, 2) + lag(oil_price, -4))
+
+summary(full_model_6)
+```
+```{r}
+full_model_7 <- dyn$lm(balance_china ~ lag(balance_china, -1) + lag(balance_china, -2) + lag(balance_china, -3) + lag(log(GDP_china), -4) + lag(oil_price, -1) + lag(Housing_complete, 2) + lag(oil_price, -4))
+
+summary(full_model_7)
+```
+```{r}
+#This model is the best, but log(GDP_china) is not significant?
+plot(predict(full_model_7))
+```
+```{r}
+#Check at the residuals
+plot(full_model_7$residuals,pch=20, ylab="Residuals")
+abline(h=0, lwd=2, col="red")
+```
+```{r}
+hist(full_model_7$residuals,col="skyblue2", freq = FALSE, ylab = "Density",
+main = "Histogram of the Residuals")
+lines(density(full_model_6$residuals),lwd = 2, col ="red")
+
+```
+
+Canada's Case
+```{r}
+#Model1
+#foreign to domestic investment
+#private investment
+#ff rate
+#coorporate bond yield
+data1 <- ts.union(balance_canada, Foreign_d_invest, private_domestic_investment, fed_funds_rate, corporate_bond_yield)
+data1 <- window(data1,end=c(2018,3))
+
+#Model2
+#us dollar
+#unemploy
+#personal saving rate
+data2 <- ts.union(balance_canada, US_dollar_indx, Unemply_rate, personal_savings_rate)
+data2 <- window(data2,end=c(2018,3))
+
+#Model3
+#ff rate
+#government bond
+data3 <- ts.union(balance_canada, fed_funds_rate, Govt_bond_yield)
+data3 <- window(data3,end=c(2018,3))
+
+
+data4 <- ts.union(balance_canada, log(GDP_USA), log(GDP_china),log(GDP_canada))
+data4 <- window(data4,end=c(2018,3))
+
+#model5
+#tariff
+data5 <- ts.union(balance_canada, USA_tarif,canada_tarif)
+data5 <- window(data5, end = c(2018,3))
+
+
+#model6
+#housing&oil
+data6 <- ts.union(balance_canada, Housing_sarts, Housing_complete, oil_price)
+data6 <- window(data6, end = c(2018,3))
+```
+
+```{r}
+#select the best-lag. because of quarterly data, the lag.max=4? 
+#VARselect(data,lag.max=4)
+
+#plug-in the best-lag into the var model
+var1<-VAR(data1,p=VARselect(data1,lag.max=4)$selection[1])
+summary(var1)
+
+var2<-VAR(data2,p=VARselect(data2,lag.max=4)$selection[1])
+summary(var2)
+
+var3<-VAR(data3,p=VARselect(data3,lag.max=4)$selection[1])
+summary(var3)
+
+var4<-VAR(data4,p=VARselect(data4,lag.max=4)$selection[1])
+summary(var4)
+```
+```{r}
+library(dyn)
+cfull_model <- dyn$lm(balance_canada ~ lag(balance_canada, -1) + lag(US_dollar_indx, -1) + lag(Unemply_rate, -1) + lag(personal_savings_rate, -1) + lag(US_dollar_indx, -2) + lag(Unemply_rate, -2) +lag(personal_savings_rate, -2)+ lag(log(GDP_USA), -1) + lag(log(GDP_china), 2) + lag(log(GDP_canada), -1) + lag(log(GDP_canada), -2) + lag(balance_canada, -4) + lag(log(GDP_canada), -3))
+
+summary(cfull_model)
+```
+```{r}
+cfull_model2 <- dyn$lm(balance_canada ~ lag(balance_canada, -1) + lag(US_dollar_indx, -1) + lag(Unemply_rate, -1) + lag(personal_savings_rate, -1) + lag(US_dollar_indx, -2) + lag(Unemply_rate, -2) +lag(personal_savings_rate, -2)+ lag(log(GDP_USA), -1) + lag(log(GDP_china), 2) + lag(log(GDP_canada), -1) + lag(log(GDP_canada), -2) + lag(log(GDP_canada), -3))
+
+summary(cfull_model2)
+```
+```{r}
+cfull_model3 <- dyn$lm(balance_canada ~ lag(balance_canada, -1) + lag(Unemply_rate, -1) + lag(personal_savings_rate, -1) + lag(US_dollar_indx, -2) + lag(Unemply_rate, -2) +lag(personal_savings_rate, -2)+ lag(log(GDP_USA), -1) + lag(log(GDP_china), 2) + lag(log(GDP_canada), -1) + lag(log(GDP_canada), -2) + lag(log(GDP_canada), -3))
+
+summary(cfull_model3)
+```
+```{r}
+cfull_model4 <- dyn$lm(balance_canada ~ lag(balance_canada, -1) + lag(Unemply_rate, -1) + lag(Unemply_rate, -2) + lag(personal_savings_rate, -1) +lag(personal_savings_rate, -2)+ lag(log(GDP_USA), -1) + lag(log(GDP_china), 2) + lag(log(GDP_canada), -1) + lag(log(GDP_canada), -2) + lag(log(GDP_canada), -3))
+
+summary(cfull_model4)
+```
+```{r}
+cfull_model5 <- dyn$lm(balance_canada ~ lag(balance_canada, -1) + lag(Unemply_rate, -1) + lag(Unemply_rate, -2) +lag(personal_savings_rate, -2)+ lag(log(GDP_USA), -1) + lag(log(GDP_china), 2) + lag(log(GDP_canada), -1) + lag(log(GDP_canada), -2) + lag(log(GDP_canada), -3))
+summary(cfull_model5)
+```
+```{r}
+cfull_model6 <- dyn$lm(balance_canada ~ lag(balance_canada, -1)  + lag(Unemply_rate, -2) +lag(personal_savings_rate, -2)+ lag(log(GDP_USA), -1) + lag(log(GDP_china), 2) + lag(log(GDP_canada), -1) + lag(log(GDP_canada), -2) + lag(log(GDP_canada), -3))
+summary(cfull_model6)
+```
+```{r}
+cfull_model7 <- dyn$lm(balance_canada ~ lag(balance_canada, -1)  +lag(personal_savings_rate, -2)+ lag(log(GDP_USA), -1) + lag(log(GDP_china), 2) + lag(log(GDP_canada), -1) + lag(log(GDP_canada), -2) + lag(log(GDP_canada), -3))
+summary(cfull_model7)
+```
+```{r}
+cfull_model8 <- dyn$lm(balance_canada ~ lag(balance_canada, -1)  +lag(personal_savings_rate, -2)+ lag(log(GDP_USA), -1) + lag(log(GDP_china), 2) + lag(log(GDP_canada), -1) + lag(log(GDP_canada), -2))
+summary(cfull_model8)
+```
+```{r}
+#This model is the best
+plot(predict(cfull_model8))
+```
+
+```{r}
+#Check at the residuals
+plot(cfull_model8$residuals,pch=20, ylab="Residuals")
+abline(h=0, lwd=2, col="red")
+```
+
+```{r}
+hist(cfull_model8$residuals,col="skyblue2", freq = FALSE, ylab = "Density",
+main = "Histogram of the Residuals")
+lines(density(cfull_model8$residuals),lwd = 2, col ="red")
+
+```
+
+```{r}
+#In this section, we make one step ahead forecast using lagged data best model
+library(data.table)
+data9<-data7
+data9<-as.data.frame(data9)
+
+data9$balance_us_1<-shift(data9$balance_us, n=1L, fill=NA, type="lag", give.names=FALSE)
+data9$balance_us_2<-shift(data9$balance_us,n=2L, fill=NA, type="lag", give.names=FALSE)
+data9$private_domestic_investment_2<-shift(data9$private_domestic_investment, n=2L, fill=NA, type="lag", give.names=FALSE)
+data9$Unemply_rate_2<-shift(data9$Unemply_rate, n=2L, fill=NA, type="lag", give.names=FALSE)
+data9$balance_china_1<-shift(data9$balance_china, n=1L, fill=NA, type="lag", give.names=FALSE)
+data9$balance_mex_1<-shift(data9$balance_mex, n=1L, fill=NA, type="lag", give.names=FALSE)
+data9$GDP_USA_1<-shift(data9$GDP_USA, n=1L, fill=NA, type="lag", give.names=FALSE)
+data9$GDP_canada_1<-shift(data9$GDP_canada, n=1L, fill=NA, type="lag", give.names=FALSE)
+data9$GDP_china_1<-shift(data9$GDP_china, n=1L, fill=NA, type="lag", give.names=FALSE)
+data9$GDP_canada_4<-shift(data9$GDP_canada, n=4L, fill=NA, type="lag", give.names=FALSE)
+data9$Housing_complete_1<-shift(data9$Housing_complete, n=1L, fill=NA, type="lag", give.names=FALSE)
+data9$oil_price_2<-shift(data9$oil_price, n=2L, fill=NA, type="lag", give.names=FALSE)
+data9$balance_us_4<-shift(data9$balance_us, n=4L, fill=NA, type="lag", give.names=FALSE)
+
+modelprd<-lm(balance_us ~ balance_us_1 + balance_us_2 + 
+    private_domestic_investment_2 + Unemply_rate_2 + balance_china_1 + 
+    balance_mex_1 + GDP_USA_1 + GDP_canada_1 + GDP_china_1 + 
+    GDP_canada_4 + Housing_complete_1 + oil_price_2, data = data9)
+summary(modelprd)
+
+newdata.0 <- data.frame(balance_us_1=data9$balance_us_1[99] ,balance_us_2=data9$balance_us_2[99] , 
+    private_domestic_investment_2=data9$private_domestic_investment_2[99] , Unemply_rate_2=data9$Unemply_rate_2[99] , balance_china_1=data9$balance_china_1[99] , 
+    balance_mex_1=data9$balance_mex_1[99] , GDP_USA_1=data9$GDP_USA_1[99] , GDP_canada_1=data9$GDP_canada_1[99] , GDP_china_1=data9$GDP_china_1[99] , 
+    GDP_canada_4=data9$GDP_canada_4[99] , Housing_complete_1=data9$Housing_complete_1[99] , oil_price_2=data9$oil_price_2[99])
+pred.1.ahead<-predict(modelprd, newdata.0, interval = "confidence")
+pred.1.ahead
+```
+
+
+
+
+
+
+```{r}
+newdata.1 <- data.frame(balance_us_1=data9$balance_us_1 ,balance_us_2=data9$balance_us_2 , 
+    private_domestic_investment_2=data9$private_domestic_investment_2 , Unemply_rate_2=data9$Unemply_rate_2 , balance_china_1=data9$balance_china_1 , 
+    balance_mex_1=data9$balance_mex_1 , GDP_USA_1=data9$GDP_USA_1, GDP_canada_1=data9$GDP_canada_1 , GDP_china_1=data9$GDP_china_1, 
+    GDP_canada_4=data9$GDP_canada_4 , Housing_complete_1=data9$Housing_complete_1 , oil_price_2=data9$oil_price_2)
+w<-predict(modelprd, newdata.1, interval = "confidence")
+
+year = c()
+
+time(GDP)
+
+library('graphics')
+plot(time(GDP)[1:99],w[,1],type = "l",col="blue", xlab = "year", ylab = "trade balance ", main = "VAR fit with 95% confidence interval")
+lines(time(GDP)[1:99],data9$balance_us)
+lines(time(GDP)[1:99],w[,2],type = "l",col="red", lty = 2)
+lines(time(GDP)[1:99],w[,3],type = "l",col="red", lty = 2)
+legend(1994,-60000, legend = c("Var fit","real values", "95% confidence"), col = c("blue","black","red"), lty = c(1,1,2))
+```
+
+
+
+```{r}
+
+hwfit<-HoltWinters(balance_us)
+hwpred <- predict(hwfit,4, prediction.interval = TRUE,level=0.5)
+plot(hwfit,hwpred,ylab="Trade Balance", xlab="Time")
+```
+
+```{r}
+
+#auto.arima(balance_us, max.p=3, d=0, max.q=3, seasonal = TRUE, stepwise=F, trace=T)
+#ARIMA(1,0,1)(0,1,1)[4]
+arma_best_um<-Arima(data9$balance_us, order = c(1,0,1), seasonal = c(0,1,1))
+plot(data9$balance_us,type="l")
+lines(arma_best_um$fitted,col="green")
+summary(arma_best_um)
+```
+
+
+
+```{r}
+a <- as.data.frame(hwfit$fitted[,1])
+a <- as.numeric(a[,1])
+a <- shift(a,n = 4, type = "lag")
+
+plot(time(GDP)[1:99],w[,1],type = "l",col="blue", main = "Var v.s Holt-Winters",xlab = "year", ylab = "trade balance")
+lines(time(GDP)[1:99],data9$balance_us)
+lines(time(GDP)[1:95],a, col = "red")
+legend(1994,-60000, legend = c("Var fit","real values", "Holt-Winters"), col = c("blue","black","red"), lty = 1)
+
+
+
+
+plot(time(GDP)[1:99],w[,1],col="blue",type="l", main = "Var v.s Auto Arima",xlab = "year", ylab = "trade balance" )
+lines(time(GDP)[1:99],data9$balance_us)
+lines(time(GDP)[1:99],arma_best_um$fitted,col="green")
+legend(1994,-60000, legend = c("Var fit","real values", "Auto Arima"), col = c("blue","black","green"), lty = 1)
+
+
+```
+
+```{r}
+#In this part, we check the rmse 
+rmse(data9$balance_us,w[,1])
+rmse(data9$balance_us,arma_best_um$fitted)
+balance.US<-balance_us
+balance.US<-as.vector(balance.US)
+balance.US[1:4]=NA
+balance.US<-na.omit(balance.US)
+fitted.HoltWinters<-fitted(hwfit)[,1]
+rmse(balance.US,fitted.HoltWinters)
+```
+
+```{r}
+data1.01<-ts.union(balance_total_us,balance_china,Foreign_d_invest,private_domestic_investment)
+data1.012<-ts.union(balance_total_us,Unemply_rate,US_dollar_indx,oil_price,Housing_complete,GDP_USA)
+data1.01 <- window(data1.01,end=c(2018,3))
+data1.012 <- window(data1.012,end=c(2018,3))
+var.2c <- VAR(data1.01, p = 4)
+var.21c <- VAR(data1.012, p = 4)
+#plot(fevd(var.2c, n.ahead = 1))
+plot(fevd(var.21c, n.ahead = 1))
+```
